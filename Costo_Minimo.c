@@ -1,15 +1,17 @@
-// Creado por ArchangelSmarth 25/05/2014
-// version 1.0.0
+// Creado por ArchangelSmarth(Rafael Garcia Sagastume) 11/08/2014
+// version 1.1.0
 // Escuintla_Guatemala
-// Copyright © 2007 Free Software Foundation, Inc
+// Copyright © 2007 Rafael Garcia Sagastume, Inc
 
 #include "stdio.h"
 #include "stdlib.h"
+#include "string.h"
 
 struct nodo{ // estuctura de los ndos de la matriz Multiplicadores
 	int status; //[solo sera para el primer nodo] [0 // cerrado || 1 // abierto]
 	int fila, sts_sp;  // sts_sp  ?? bloqueo special
-	int base, expo; 
+	int base, expo; // haran las multiplicaciones de base con exponente
+	int pase_ordenamiento; // decide quien es el que pasara primero a operar la demanda / oferta
 	struct nodo *sig, *abj; // enlace de nodos
 };
 
@@ -17,6 +19,16 @@ struct nodo{ // estuctura de los ndos de la matriz Multiplicadores
 struct nodo *pt1=0; // ??  matriz de datos ??
 struct nodo *l_Demanda=0;  //?? contendra las demandas
 struct nodo *l_Oferta=0; // ?? contendra las ofertas
+
+// variables de la consola   
+int v_consola=0, cantidad_nodos_listas=0; // la cantidad_nodos_listas cuenta los nodos creados en las listas y lo reduce al dar el pase
+int f, nf=0, c, nc=0, d, nd=0, o, no;
+int control_demanda=0, control_oferta=0;
+int numero_pase=1; // leda el el orden de pase para el nodo que sera operado
+int numero_nodos_matriz=0; // contendra el valor inicial de cantidad_nodos_lista pero sera una constante del total nodos encontrados
+//--------------------------------------------
+
+int ciclos=0;
 //prototipos
 void insert_fila_nodo(int f, int b, /*int e*/ struct nodo **rn);
 void insert_new_fila_nodo(int f, int b, /*int e*/ struct nodo **rn);
@@ -26,8 +38,9 @@ void ver_Demanda_Oferta(struct nodo *raiz_demanda, struct nodo *raiz_oferta);
 struct nodo *inserta_oferta(int o, struct nodo **rai_oferta);
 struct nodo *inserta_demanda(int d, struct nodo **raiz_demanda);
 void block_nodos_off(struct nodo *raiz_matriz , struct nodo *raiz_oferta, struct nodo *raiz_demanda);
-void Operacion_costo_minimo(struct nodo *raiz_matriz , struct nodo *raiz_oferta, struct nodo *raiz_demanda);
-void v_cost_min();
+void Operacion_costo_minimo(struct nodo *raiz_matriz , struct nodo *raiz_oferta, struct nodo *raiz_demanda); // ordena los pases de nodos
+void opera_costo_minimo(struct nodo *raiz_matriz , struct nodo *raiz_oferta, struct nodo *raiz_demanda); // da el valor del exponente costo_minimo
+void v_cost_min(); // da el valor del costo minimo
 
 
 // ---------------------------- crea los nodos -------------------------------------------
@@ -45,7 +58,9 @@ struct nodo *crear_nodo(int f, int b, /*int e*/ struct nodo *rn){
 // 		45 67 23 21  [Opciones de Demanda?????]
 // inserta nodos en la filas y nuevas filas------------------------------------------------
 void insert_fila_nodo(int f, int b, /*int e*/ struct nodo **rn){
+	
 	if(!(*rn)){
+		cantidad_nodos_listas++; // cuentas los nodos insertados en listas
 		(*rn)=crear_nodo(f, b, (*rn));
 	}else{
 		if((*rn)->status!=1){
@@ -59,6 +74,7 @@ void insert_fila_nodo(int f, int b, /*int e*/ struct nodo **rn){
 
 void insert_new_fila_nodo(int f, int b, /*int e*/ struct nodo **rn){
 	if(!(*rn)){
+		cantidad_nodos_listas++; // cuentas los nodos insertados en listas
 		(*rn)=crear_nodo(f, b, (*rn));
 	}else{
 		if((*rn)->status!=1){
@@ -99,6 +115,7 @@ void ver_n(struct nodo *rf){ // muestra la fila de inserciones
 		rf1=rf1->abj;printf("\n");
 		fila++;
 	}
+
 }
 
 // ------------------------------ inserta las demandas / Ofertas----------------------------------
@@ -108,14 +125,18 @@ struct nodo *inserta_demanda(int d, struct nodo **raiz_demanda){
 	}else{
 		inserta_demanda(d, &((*raiz_demanda)->sig));
 	}
+
+	return *raiz_demanda;
 }
 
-struct nodo *inserta_oferta(int o, struct nodo **rai_oferta){
-	if(!(*rai_oferta)){
-		(*rai_oferta)=crear_nodo(1, o, (*rai_oferta));
+struct nodo *inserta_oferta(int o, struct nodo **raiz_oferta){
+	if(!(*raiz_oferta)){
+		(*raiz_oferta)=crear_nodo(1, o, (*raiz_oferta));
 	}else{
-		inserta_oferta(o, &((*rai_oferta)->sig));
+		inserta_oferta(o, &((*raiz_oferta)->sig));
 	}
+
+	return *raiz_oferta;
 }
 
 void ver_Demanda_Oferta(struct nodo *raiz_demanda, struct nodo *raiz_oferta){
@@ -129,183 +150,168 @@ void ver_Demanda_Oferta(struct nodo *raiz_demanda, struct nodo *raiz_oferta){
 		printf("[\t%d", raiz_demanda->base);printf("\t]");
 		raiz_demanda=raiz_demanda->sig;
 	}
+	printf("\n");
 
 }
 
-// ----------------------------------- Operacion Costo Minimo ----------------------------------
+
+
+// ------------------------------------------------------- Operacion Costo Minimo ---------------------------------------------------------
 
 void Operacion_costo_minimo(struct nodo *raiz_matriz , struct nodo *raiz_oferta, struct nodo *raiz_demanda){
 
-	int pos_minimo_matriz, r_demanda, r_oferta=1, pos_demanda, pos_oferta;
-	int max, min;
-	struct nodo *ptr, *new_fila, *f1;
-	ptr = pt1;
-	new_fila=pt1; 
-	raiz_oferta=l_Oferta;
-	raiz_demanda=l_Demanda;
+	// 	apuntara al menor // recorre la fila // recorre la siguiente lista
+	struct nodo *ptr_menor, *busca_menor, *ptr_baja, *ptr_menor_matriz;
+	// toma la direccion de la raiz de la matriz de datos
+	ptr_baja = busca_menor = ptr_menor_matriz = ptr_menor = raiz_matriz; // raiz matriz = la raiz de todas las listas
 
-	while(new_fila!=NULL){
-		ptr=raiz_matriz=new_fila; // estara en cada fila
-		min=raiz_matriz->base; // por default toma el valor del primer nodo
-		raiz_oferta=l_Oferta;
-		raiz_demanda=l_Demanda;
-		pos_minimo_matriz = pos_demanda = pos_oferta = 1;
-	while(raiz_matriz!=NULL){ //?? buscar numero de fila
+while(ptr_baja!=NULL){
+	busca_menor=ptr_baja;
+	while(busca_menor!=NULL){//busca libre
 
-		if(raiz_matriz->sig!=NULL){	// valida si el siguiente existe
-			if(min<raiz_matriz->sig->base && (raiz_matriz->sig->sts_sp==0)){  // si el nodo esta bloqueado no compara
-				raiz_matriz=raiz_matriz->sig;
-			}else if(min>raiz_matriz->sig->base && (raiz_matriz->sig->sts_sp==0)){
-				min=raiz_matriz->sig->base; // tiene el valor minimo
-				pos_minimo_matriz++; // posicion del minimo
-				raiz_matriz=raiz_matriz->sig;
-				ptr = raiz_matriz;  // apunta al nodo menor
-			}else{
-				raiz_matriz=raiz_matriz->sig;
-			}
-		}else{
+		if(busca_menor->sts_sp==0){
+			ptr_menor=busca_menor;
 			break;
 		}
-		
+		busca_menor=busca_menor->sig;
 	}
-	printf("Minimo: %d", ptr->base);printf(" Posicion: %d\n", pos_minimo_matriz);
+	ptr_baja=ptr_baja->abj;
+}
 
-	while(pos_demanda!=pos_minimo_matriz){ // busca la demanda para el caso
+// retorna los punteros a raiz
+busca_menor=ptr_baja=raiz_matriz;
 
-		if(raiz_demanda!=NULL){ // solo valido que no sea NULL
-			raiz_demanda=raiz_demanda->sig;
-			pos_demanda++;
-		}
 
-	}
-	printf("Demanda para Gastar: %d\n", raiz_demanda->base);
+	while(ptr_baja!=NULL){
+	busca_menor=ptr_baja;
+		while(busca_menor!=NULL){
 
-		while(pos_oferta != r_oferta){ // busca la Oferta para el caso
-			if(raiz_oferta!=NULL){ // solo valido que no sea NULLz
-				raiz_oferta=raiz_oferta->sig;
-				pos_oferta++;
-			}
-		}
-			printf("Oferta para Gastar: %d\n", raiz_oferta->base);
-
-			if(raiz_oferta->base < raiz_demanda->base && (ptr->sts_sp==0)){
-				ptr->expo= raiz_oferta->base;
-				raiz_demanda->base = raiz_demanda->base - raiz_oferta->base;
-				raiz_oferta->base = 0;
-			}else if(raiz_oferta->base > raiz_demanda->base && (ptr->sts_sp==0)){
-				ptr->expo=raiz_demanda->base;
-				raiz_oferta->base=raiz_oferta->base - raiz_demanda->base;
-				raiz_demanda->base = 0;
+			if(ptr_menor->base > busca_menor->base && (busca_menor->sts_sp==0)){
+				ptr_menor=busca_menor;
 			}
 
-		printf("Demanda Actual: %d\n", raiz_demanda->base);printf("  Oferta Actual: %d\n", raiz_oferta->base);
-		printf("%d", ptr->base);printf("  Exponente: %d\n", ptr->expo);
-		printf("-----------------------------------------------------------------------\n");
-		// cada ciclo es una operacion
-
-	new_fila=new_fila->abj; r_oferta++;
+			busca_menor=busca_menor->sig;
+		}
+		ptr_baja=ptr_baja->abj;
 	}
-	block_nodos_off(pt1, l_Oferta, l_Demanda);
+	ptr_menor->sts_sp=1;
+	ptr_menor->pase_ordenamiento=numero_pase;
+	numero_pase++;
+	cantidad_nodos_listas--;
 
-	struct nodo *s_oferta, *s_demanda;
-	int result_ofer, result_deman;
-	s_oferta = l_Oferta;
-	s_demanda = l_Demanda;
-	// suma la ofer/demanda 
+	printf("Nodo: %d  pase: %d\n", ptr_menor->base, ptr_menor->pase_ordenamiento);
 
-	while(s_oferta!=NULL){
-		result_ofer = result_ofer + s_oferta->base;
-		result_deman = result_deman + s_demanda->base;
-		s_oferta = s_oferta->sig;
-		s_demanda = s_demanda->sig;
-	}
-	printf("demanda sumatoria------> : %d\n", result_deman);
-	printf("oferta sumatoria------> : %d\n", result_ofer);
-
-	if(result_deman == 0){
-		// ?? se termino el proceso
-		v_cost_min();
-	}else if(result_ofer == 0){
-		// ?? se termino el proceso
-		v_cost_min();
+	if(cantidad_nodos_listas > 0){
+		Operacion_costo_minimo(raiz_matriz ,raiz_oferta, raiz_demanda);
 	}else{
-		printf("Se sigue procesando....!!!\n");
-		Operacion_costo_minimo(pt1, l_Oferta, l_Demanda);
+		numero_nodos_matriz = numero_pase; // tendra el valor total de los nodos
+		numero_pase=1; // recetea el numero de pase
+		opera_costo_minimo(raiz_matriz , raiz_oferta, raiz_demanda);
 	}
-
-
+// fin del metodo operacion
 }
 
 
-void block_nodos_off(struct nodo *raiz_matriz , struct nodo *raiz_oferta, struct nodo *raiz_demanda){  // if ofer=0 || demanda=0   ---> block nodos
-	struct nodo *ptr_Oferta;
-	struct nodo *ptr_Demanda;
-	struct nodo *ptr_abj;
-	struct nodo *ptr_sig;
-	struct nodo *ptr_matriz;
-	ptr_Oferta = raiz_oferta;
-	ptr_matriz = ptr_sig = ptr_abj = raiz_matriz;
+// buscara el nodo con el pase menor al mayor de la matriz para disponer 
+//de la demanda/ oferta que llevara el exponente del nodo
+void opera_costo_minimo(struct nodo *raiz_matriz , struct nodo *raiz_oferta, struct nodo *raiz_demanda){
+	
+	int posicion_demanda=0, posicion_oferta=0; // que oferta y que demanda gastara
+	int busca_posicion_demanda=1, busca_posicion_oferta=1; //auxiliares para buscar las posiciones demanda/oferta
+
+	// 	apuntara al menor del pase // recorre la fila // recorre la siguiente lista
+	struct nodo *ptr_menor, *busca_menor, *ptr_baja, *ptr_menor_matriz;
+	// toma la direccion de la raiz de la matriz de datos
+	ptr_baja = busca_menor = ptr_menor_matriz = ptr_menor = raiz_matriz; // raiz matriz = la raiz de todas las listas
 
 
-	int n_oferta=1, n_demanda=1, n_matriz_abj=1, n_matriz_sig=1, _matriz=1;
-
-	// code // bloque nodo ofer=0--------------------------------------------------
-	while(ptr_Oferta!=NULL){  // bloquar fila de oferta cero
-
-		if(ptr_Oferta->base == 0){
-			n_matriz_abj = n_oferta;
-
-			while( _matriz != n_matriz_abj){ // busca la fila de la oferta
-				_matriz++;
-				ptr_abj=ptr_abj->abj;
-			}
-
-			ptr_sig = ptr_abj;
-
-			while(ptr_sig!=NULL){
-				ptr_sig->sts_sp=1; // ¡¡ ndo block !!
-				ptr_sig=ptr_sig->sig;
-			}
-
-		}
-		n_oferta++;
-		ptr_Oferta=ptr_Oferta->sig;
-
-	}
-
-	// code // para bloquear nodos con demanda=0 ----------------------------------
-	ptr_Demanda = raiz_demanda;
-	ptr_matriz = ptr_sig = ptr_abj = raiz_matriz;
-	n_oferta=1, n_demanda=1, n_matriz_abj=1, n_matriz_sig=1, _matriz=1;
-	int n_sig_sig=1;
+	struct nodo *ptr_busca_demanda, *ptr_busca_oferta;
+	ptr_busca_oferta = raiz_oferta; // se posiciona en la raiz de la oferta
+	ptr_busca_demanda = raiz_demanda; // se posiciona en la raiz de la demanda
 
 
-	while(ptr_Demanda!=NULL){
+	while(ptr_baja!=NULL){
+		busca_menor = ptr_baja; // se posiciona en cada linea para buscar el pase menor
+		posicion_oferta++; // aumenta si baja de lista
+		while(busca_menor!=NULL){
+			posicion_demanda++; //aumenta si recorre un nodo de la lista
+			if(busca_menor->pase_ordenamiento == numero_pase){ // pase_ordenamiento se asigno anteriormente al nodo
+				//printf("Nodo encontrado: %d\n", busca_menor->base);
+				printf("Posicion de la oferta: %d\n", posicion_oferta);
+				printf("Posicion de la demanda: %d\n", posicion_demanda);
+				//break;
 
-		if(ptr_Demanda->base == 0){
-			ptr_abj = ptr_sig = raiz_matriz;
-				while(ptr_abj!=NULL){
-					n_sig_sig=1;
-					while(n_sig_sig != n_demanda){
-						n_sig_sig++;
-							ptr_sig=ptr_sig->sig;
+				while(posicion_demanda != busca_posicion_demanda){ // encuentro la posicion de la demanda
+					busca_posicion_demanda++;
+					if(ptr_busca_demanda->sig != NULL){
+						ptr_busca_demanda = ptr_busca_demanda->sig;
+					}else {
+						printf("El numero del nodo de la Matriz Supera al Numero de Nodo de la Demanda\n");
+						exit(0);
 					}
-					ptr_sig->sts_sp=1;   // block ndo ????
-					if(ptr_abj!=NULL){
-						ptr_abj=ptr_abj->abj;
-						ptr_sig=ptr_abj;
-					}
-
 				}
+
+				while(posicion_oferta != busca_posicion_oferta){ // encentro la posicion de la oferta
+					busca_posicion_oferta++;
+					if(ptr_busca_oferta->sig != NULL){
+						ptr_busca_oferta = ptr_busca_oferta->sig;
+					}else {
+						printf("El numero de lista de la Matriz Supera al Numero de Nodo de la Oferta\n");
+						exit(0);
+					}
+				}
+
+				printf("Nodo encontrado: %d\n", busca_menor->base);
+				printf("Demanda: %d\n", ptr_busca_demanda->base);
+				printf("Oferta: %d\n", ptr_busca_oferta->base);
+				//break;
+
+				if(ptr_busca_oferta->base < ptr_busca_demanda->base){
+					if(ptr_busca_oferta->base!=0){
+						busca_menor->expo= ptr_busca_oferta->base;
+					}
+					ptr_busca_demanda->base = ptr_busca_demanda->base - ptr_busca_oferta->base;
+					ptr_busca_oferta->base = 0;
+				}else if(ptr_busca_oferta->base > ptr_busca_demanda->base){
+					
+					if(ptr_busca_demanda->base!=0){
+						busca_menor->expo=ptr_busca_demanda->base;
+					}
+
+					ptr_busca_oferta->base=ptr_busca_oferta->base - ptr_busca_demanda->base;
+					ptr_busca_demanda->base = 0;
+				}else if(ptr_busca_oferta->base == ptr_busca_demanda->base){
+					busca_menor->expo=ptr_busca_demanda->base;
+					ptr_busca_oferta->base = 0;
+					ptr_busca_demanda->base = 0;
+				}
+
+				
+				printf("-------------------------------------------------------------- \n");
+				//break;
+				
+			}
+
+			busca_menor = busca_menor->sig; // recorre la lista completa de su determinando nivel
 		}
 
-		n_demanda++;
-		ptr_Demanda= ptr_Demanda->sig;
+		ptr_baja = ptr_baja->abj;
+		ptr_busca_oferta = raiz_oferta; // se posiciona en la raiz de la oferta
+		ptr_busca_demanda = raiz_demanda; // se posiciona en la raiz de la demanda
+		posicion_demanda=0;
+		//posicion_oferta=0;
 	}
 
-}
+	numero_pase++; // busca el sigiente nodo [del menor al mayor]
+	if(numero_nodos_matriz != numero_pase){ // hasta que alcance los nodos totales
+		opera_costo_minimo(raiz_matriz , raiz_oferta, raiz_demanda); // mando las raices nuevamente
+	}
+	
 
-// entrega el resultado de la matriz
+}
+//----------------------------------------------------------------------------------------------------------------------------------------
+// entrega el resultado de la matriz 
+
 void v_cost_min(){
 
 	struct nodo *ndo_res_matriz, *ndo_res_abj;
@@ -324,47 +330,60 @@ void v_cost_min(){
 		printf("Costo Minimo de la Operacion: %d\n", cost_min);
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+
 
 //--------------------------------------- metodo principal---------------------------------------
 
 int main(int argc, char const *argv[])
 {
-	
 	/* code */
-	// el ingreso de los datos es manual para el primer beta
 	printf("Iniciando Metodo Multiplicadores\n");
-	insert_fila_nodo(1,23,&pt1);
-	insert_fila_nodo(1,6,&pt1);
-	insert_fila_nodo(1,24,&pt1);
+	insert_fila_nodo(1,5,&pt1);
+	insert_fila_nodo(1,2,&pt1);
+	insert_fila_nodo(1,7,&pt1);
+	insert_fila_nodo(1,3,&pt1);
 	close_line(1, pt1); //cierro linea de insercion
 
-	insert_fila_nodo(1,20,&pt1);
-	insert_fila_nodo(1,12,&pt1);
-	insert_fila_nodo(1,11,&pt1);
-
+	insert_fila_nodo(1,3,&pt1);
+	insert_fila_nodo(1,6,&pt1);
+	insert_fila_nodo(1,6,&pt1);
+	insert_fila_nodo(1,1,&pt1);
 	close_line(2, pt1); //cierro linea de insercion
-	insert_fila_nodo(1,18,&pt1);
-	insert_fila_nodo(1,20,&pt1);
-	insert_fila_nodo(1,30,&pt1);
 
-	
+	insert_fila_nodo(1,6,&pt1);
+	insert_fila_nodo(1,1,&pt1);
+	insert_fila_nodo(1,2,&pt1);
+	insert_fila_nodo(1,4,&pt1);
+	close_line(3, pt1); //cierro linea de insercion
 
+	insert_fila_nodo(1,4,&pt1);
+	insert_fila_nodo(1,3,&pt1);
+	insert_fila_nodo(1,6,&pt1);
+	insert_fila_nodo(1,6,&pt1);
+	close_line(4, pt1); //cierro linea de insercion
 
-	inserta_demanda(120, &l_Demanda);
-	inserta_demanda(80, &l_Demanda);
-	inserta_demanda(100, &l_Demanda);
+	// ------------------------------------------------------------------------------
+	inserta_demanda(70, &l_Demanda);
+	inserta_demanda(40, &l_Demanda);
+	inserta_demanda(70, &l_Demanda);
+	inserta_demanda(35, &l_Demanda);
 
-	inserta_oferta(100, &l_Oferta);
-	inserta_oferta(200, &l_Oferta);
-	inserta_oferta(100, &l_Oferta);
-	ver_n(pt1);
+	inserta_oferta(80, &l_Oferta);
+	inserta_oferta(30, &l_Oferta);
+	inserta_oferta(60, &l_Oferta);
+	inserta_oferta(45, &l_Oferta);
+	//ver_n(pt1);
 	ver_Demanda_Oferta(l_Demanda, l_Oferta);
 
 	printf("\n");
-	Operacion_costo_minimo(pt1, l_Oferta, l_Demanda);
-
+	//Operacion_costo_minimo(pt1, l_Oferta, l_Demanda); 
 	//block_nodos_off(pt1, l_Oferta, l_Demanda);
 
+	ver_n(pt1);
+	Operacion_costo_minimo(pt1, l_Oferta, l_Demanda);
+
+	v_cost_min();
 	ver_n(pt1);
 
 	printf("\n");
