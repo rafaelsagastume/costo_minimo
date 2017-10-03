@@ -1,7 +1,28 @@
-// Creado por ArchangelSmarth(Rafael Garcia Sagastume) 11/08/2014
-// version 1.1.0
-// Escuintla_Guatemala
-// Copyright © 2007 Rafael Garcia Sagastume, Inc
+//===-------------- costo_minimo.h ---------------------------------------===//
+//
+// Autor: Rafael Fernando Garcia Sagastume.
+// Escuintla, Guatemala
+//
+// La libreria contiene los procesos necesarios para poder generar la insercion
+// a la matriz para el metodo multiplicadores, esta costa de ofertas y demandas
+//
+// Librerias principales para el uso:
+//
+//		insert_fila_nodo(1,5,&pt1);  [Global struture => pt1]
+//		close_line(1, pt1); //cierre de linea de insercion
+//
+//		inserta_demanda(35, &l_Demanda);
+//		inserta_oferta(30, &l_Oferta);
+//
+//		ver_n(pt1);
+//		Operacion_costo_minimo(pt1, l_Oferta, l_Demanda);
+//		v_cost_min();
+//
+// compilacion: gcc costo_minimo.c -o costo_minimo
+//
+// Copyright © 2017 Rafael Fernando Garcia Sagastume.
+//===----------------------------------------------------------------------===//
+
 
 #include "stdio.h"
 #include "stdlib.h"
@@ -328,64 +349,4 @@ void v_cost_min(){
 		ndo_res_abj=ndo_res_abj->abj;
 	}
 		printf("Costo Minimo de la Operacion: %d\n", cost_min);
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-
-
-//--------------------------------------- metodo principal---------------------------------------
-
-int main(int argc, char const *argv[])
-{
-	/* code */
-	printf("Iniciando Metodo Multiplicadores\n");
-	insert_fila_nodo(1,5,&pt1);
-	insert_fila_nodo(1,2,&pt1);
-	insert_fila_nodo(1,7,&pt1);
-	insert_fila_nodo(1,3,&pt1);
-	close_line(1, pt1); //cierro linea de insercion
-
-	insert_fila_nodo(1,3,&pt1);
-	insert_fila_nodo(1,6,&pt1);
-	insert_fila_nodo(1,6,&pt1);
-	insert_fila_nodo(1,1,&pt1);
-	close_line(2, pt1); //cierro linea de insercion
-
-	insert_fila_nodo(1,6,&pt1);
-	insert_fila_nodo(1,1,&pt1);
-	insert_fila_nodo(1,2,&pt1);
-	insert_fila_nodo(1,4,&pt1);
-	close_line(3, pt1); //cierro linea de insercion
-
-	insert_fila_nodo(1,4,&pt1);
-	insert_fila_nodo(1,3,&pt1);
-	insert_fila_nodo(1,6,&pt1);
-	insert_fila_nodo(1,6,&pt1);
-	close_line(4, pt1); //cierro linea de insercion
-
-	// ------------------------------------------------------------------------------
-	inserta_demanda(70, &l_Demanda);
-	inserta_demanda(40, &l_Demanda);
-	inserta_demanda(70, &l_Demanda);
-	inserta_demanda(35, &l_Demanda);
-
-	inserta_oferta(80, &l_Oferta);
-	inserta_oferta(30, &l_Oferta);
-	inserta_oferta(60, &l_Oferta);
-	inserta_oferta(45, &l_Oferta);
-	//ver_n(pt1);
-	ver_Demanda_Oferta(l_Demanda, l_Oferta);
-
-	printf("\n");
-	//Operacion_costo_minimo(pt1, l_Oferta, l_Demanda); 
-	//block_nodos_off(pt1, l_Oferta, l_Demanda);
-
-	ver_n(pt1);
-	Operacion_costo_minimo(pt1, l_Oferta, l_Demanda);
-
-	v_cost_min();
-	ver_n(pt1);
-
-	printf("\n");
-	return 0;
 }
